@@ -1,0 +1,56 @@
+import cv2
+import numpy as np
+
+# Load the image from the same directory as the script
+image = cv2.imread('red.png')
+
+# Define the target color in RGB
+target_color = np.array([210, 32, 30])  # RGB values corresponding to #D2201E
+
+# Define a tolerance range for similarity
+tolerance = 40  # Adjust this value to control the similarity threshold
+
+# Convert RGB to BGR (OpenCV format)
+lower_bound = np.array([max(target_color[2] - tolerance, 0), max(target_color[1] - tolerance, 0), max(target_color[0] - tolerance, 0)])
+upper_bound = np.array([min(target_color[2] + tolerance, 255), min(target_color[1] + tolerance, 255), min(target_color[0] + tolerance, 255)])
+
+# Threshold the image to get colors similar to the target color
+mask = cv2.inRange(image, lower_bound, upper_bound)
+
+# Find contours in the mask
+contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+# Get the centroids of the contours on the left half and right half
+left_centroids = []
+right_centroids = []
+for contour in contours:
+    if cv2.contourArea(contour) > 100:  # Filter out small contours to remove noise
+        M = cv2.moments(contour)
+        if M["m00"] != 0:
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            if cX < image.shape[1] // 2:
+                left_centroids.append((cX, cY))
+            else:
+                right_centroids.append((cX, cY))
+
+# Calculate the average slope and intercept for left and right lines
+left_slope, left_intercept = np.polyfit([point[0] for point in left_centroids], [point[1] for point in left_centroids], 1)
+right_slope, right_intercept = np.polyfit([point[0] for point in right_centroids], [point[1] for point in right_centroids], 1)
+
+# Calculate y-coordinates for the left and right lines using image width
+left_y1 = int(left_slope * 0 + left_intercept)
+left_y2 = int(left_slope * (image.shape[1] - 1) + left_intercept)
+right_y1 = int(right_slope * 0 + right_intercept)
+right_y2 = int(right_slope * (image.shape[1] - 1) + right_intercept)
+
+# Draw the left and right lines on the image
+cv2.line(image, (0, left_y1), (image.shape[1] - 1, left_y2), (204, 72, 186), 2)
+cv2.line(image, (0, right_y1), (image.shape[1] - 1, right_y2), (204, 72, 186), 2)
+
+# Save the result as a new image
+cv2.imwrite('answer.png', image)
+
+# Display the image with detected lines
+cv2.waitKey(0)
+cv2.destroyAllWindows()
